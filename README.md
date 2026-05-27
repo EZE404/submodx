@@ -72,6 +72,41 @@ All unmatched routes return `{ subtitles: [] }`.
 - **Encoding detection & conversion:** `jschardet`, `iconv-lite`
 - **Encryption:** built-in `crypto` module (AES-256-GCM, scrypt-derived key)
 
+## Request flow
+
+```mermaid
+flowchart TB
+  S[Stremio] -->|"GET /:config/subtitles/..."| SR[Search route]
+  S -->|"GET /:config/srt/:id"| DR[Download route]
+
+  subgraph SR [Subtitle search]
+    direction TB
+    D1[Decrypt config token<br>→ API key] --> D2{Search cache hit?}
+    D2 -->|Yes| D3[Return cached results]
+    D2 -->|No| D4[Query SubX API<br>with IMDb ID]
+    D4 --> D5[Cache results → Return]
+  end
+
+  subgraph DR [Subtitle download]
+    direction TB
+    E1[Decrypt config token<br>→ API key] --> E2{Download cache hit?}
+    E2 -->|Yes| E3[Serve cached file]
+    E2 -->|No| E4[Download archive<br>from SubX API]
+    E4 --> E5{Format?}
+    E5 -->|ZIP| E6[Extract with adm-zip]
+    E5 -->|RAR| E7[Extract with node-unrar-js]
+    E5 -->|Other| E8[Use as-is]
+    E6 --> E9[Select best subtitle<br>.srt > .sub > .ass/.ssa]
+    E7 --> E9
+    E8 --> E9
+    E9 --> E10[Detect encoding<br>Convert to UTF-8]
+    E10 --> E11[Cache file → Serve]
+  end
+
+  SR -->|"{subtitles: [...]}"| S
+  DR -->|"Subtitle file (UTF-8)"| S
+```
+
 ## License
 
 MIT
