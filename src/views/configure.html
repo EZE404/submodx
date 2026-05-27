@@ -1,0 +1,92 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>SubmodX - Configuración</title>
+<link rel="stylesheet" href="css/configure.css">
+</head>
+<body>
+<div class="card">
+  <div class="header">
+    <img src="logo.png" alt="SubmodX" class="logo-img">
+    <div>
+      <h1>SubmodX</h1>
+      <div class="subtitle">Subtítulos en español de SubX (subdivx) para Stremio</div>
+    </div>
+  </div>
+
+  <div class="section">
+    <label for="apiKey">Obtén tu enlace de instalación personalizado</label>
+    <div class="input-row">
+      <input type="password" id="apiKey" placeholder="Pega tu clave API de SubX aquí" autocomplete="off">
+      <button class="btn btn-primary" id="testBtn">Probar clave</button>
+    </div>
+    <div class="feedback" id="feedback"></div>
+  </div>
+
+  <div class="section" id="resultSection" style="display:none">
+    <label>Tu enlace de instalación personalizado</label>
+    <div class="input-row">
+      <input type="text" readonly id="manifestUrl" class="url-input" onclick="this.select()">
+      <button class="btn btn-success" id="copyBtn">Copiar</button>
+    </div>
+    <div class="btn-group" style="margin-top: 12px;">
+      <button class="btn btn-primary" id="installBtn">Instalar en Stremio</button>
+      <button class="btn btn-secondary" id="resetBtn">Generar otro enlace</button>
+    </div>
+    <div class="note">Si el botón "Instalar en Stremio" no funciona, copia el enlace manualmente.</div>
+  </div>
+
+  <div class="info-box">
+    <strong><h2>¿No tienes clave API?</h2></strong>
+    <ol style="margin: 8px 0 0 20px;">
+      <li>Regístrate en <a href="https://subx-api.duckdns.org" target="_blank" rel="noopener">subx-api.duckdns.org</a></li>
+      <li>Ve a tu perfil</li>
+      <li>Crea una nueva clave API (es gratis)</li>
+    </ol>
+  </div>
+  <div class="info-box">
+    <strong><h2>Privacidad y funcionamiento</h2></strong>
+    <ul>
+      <li>
+        <strong>Clave personal:</strong> Cada usuario usa su propia clave API de SubX.
+        Tu clave solo se usa para realizar tus solicitudes de subtítulos (búsqueda y potenciales descargas).
+      </li>
+      <li>
+        <strong>Límites de uso:</strong> SubX tiene límites de solicitudes por clave API (bastante generosos). En uso personal normal este límite no es alcanzable. SubmodX utiliza caché para prevenir solictudes repetidas inmediatas a SubX.
+        <br><br>
+        Si no hay datos en caché y se han agotado las solicitudes a SubX de tu clave API, SubmodX no devolverá resultados hasta que tu cuota se renueve, o que otro usuario haya realizado esa misma petición (y por tanto, haya quedado en caché).
+        <br><br>
+        Actualmente, la caché de resultados de búsqueda no vuelve a consultar SubX antes de <strong>{{SEARCH_CACHE_TTL}}</strong> desde la última consulta. El tiempo es corto ya que podrías estar esperando los subtítulos para un estreno.
+        Mientras que la caché para un archivo de subtítulos es de <strong>{{DOWNLOAD_CACHE_TTL}}</strong>, por lo que no deberías preocuparte por tu cuota cuando seleccionas nuevamente un mismo archivo de subtítulos.
+        <br><br>
+        <strong>La cantidad máxima de subtítulos solicitados a SubX por búsqueda (película o episodio) es de {{MAX_SEARCH_RESULTS}}.</strong>
+        <br><br>
+        Para conocer los límites exactos de SubX consulta<br>
+        <a href="https://subx-api.duckdns.org/docs/es/guides/rate-limits/" target="_blank" rel="noopener">subx-api.duckdns.org/docs/es/guides/rate-limits/</a>.
+      </li>
+      <li>
+        <strong>Privacidad total:</strong> Tu clave viaja cifrada en la URL personal generada para instalar el complemento.
+        El servidor la descifra al vuelo para cada petición. Así que, no compartas la URL generada. Comparte esta página para que cada usuario genere su propia URL.
+        <br><br>
+        No se guarda nada, ni en base de datos ni en disco.
+        No necesitas pedir que se borren tus datos porque no se almacenan.
+      </li>
+      <li>
+        <strong>¿Perdiste la URL de instalación?</strong> Genera una nueva en esta página.
+      </li>
+    </ul>
+  </div>
+
+  <div class="footer">
+    SubmodX &mdash; {{ADDON_VERSION}} | 
+    <a href="https://github.com/EZE404" target="_blank" rel="noopener">EZE404 <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" class="bi bi-github" viewBox="0 0 16 16">
+  <path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27s1.36.09 2 .27c1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.01 8.01 0 0 0 16 8c0-4.42-3.58-8-8-8"/>
+</svg></a>
+  </div>
+</div>
+
+<script src="js/configure.js"></script>
+</body>
+</html>

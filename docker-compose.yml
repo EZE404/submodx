@@ -1,0 +1,14 @@
+services:
+  submodx:
+    build: .
+    container_name: submodx
+    env_file: .env
+    ports:
+      - "${PORT}:${PORT}"
+    volumes:
+      - submodx-cache:/app/cache
+    restart: unless-stopped
+
+volumes:
+  submodx-cache:
+    driver: local
