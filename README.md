@@ -1,4 +1,7 @@
 # SubmodX — Spanish Subtitles for Stremio
+<p align="center">
+  <img src="https://raw.githubusercontent.com/EZE404/submodx/refs/heads/master/public/logo_hires.png" alt="SubmodX" width="400">
+</p>
 
 **SubmodX** is a self-hostable [Stremio](https://www.stremio.com) addon that provides Spanish subtitles (`spa`) from [SubX](https://subx-api.duckdns.org) — an API wrapper around [subdivx.com](https://www.subdivx.com), the largest Spanish subtitle community.
 
