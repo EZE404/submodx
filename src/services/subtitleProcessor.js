@@ -6,6 +6,11 @@ const config = require('../config')
 const logger = require('./logger')
 const { ensureUtf8 } = require('../utils/ensureUtf8')
 const { sanitizeFilename, sanitizeForLogs } = require('../utils/sanitize')
+const {
+  checkContentLength,
+  checkEntrySize,
+  checkCompressionRatio,
+} = require('../utils/sizeLimits')
 
 const downloadCache = config.cacheDir
   ? createFileCache(config.cacheDir)
@@ -58,21 +63,50 @@ function selectBestSubtitle(entries) {
   return selected
 }
 
+function detectArchiveFormat(buffer) {
+  if (!buffer || buffer.length < 4) return null
+  if (buffer[0] === 0x50 && buffer[1] === 0x4B && buffer[2] === 0x03 && buffer[3] === 0x04) return 'zip'
+  if (
+    buffer[0] === 0x52 && buffer[1] === 0x61 && buffer[2] === 0x72 &&
+    buffer[3] === 0x21 && buffer[4] === 0x1A &&
+    (buffer[5] === 0x07 && (buffer[6] === 0x00 || buffer[6] === 0x01))
+  ) return 'rar'
+  return null
+}
+
+async function detectFormat(buffer) {
+  try {
+    const { fileTypeFromBuffer } = await import('file-type')
+    const type = await fileTypeFromBuffer(buffer)
+    if (type?.ext === 'zip' || type?.ext === 'rar') return type.ext
+  } catch {
+    logger.debug('file-type import failed, falling back to magic-byte detection')
+  }
+  return detectArchiveFormat(buffer)
+}
+
 function extractZip(buffer) {
   const AdmZip = require('adm-zip')
   const zip = new AdmZip(buffer)
   const entries = zip.getEntries()
+
+  if (entries.length > config.maxArchiveEntries) {
+    throw new Error(`Zip archive has ${entries.length} entries, exceeds maximum ${config.maxArchiveEntries}`)
+  }
 
   const subtitleEntries = entries
     .filter(e =>
       !e.isDirectory &&
       /\.(srt|sub|ass|ssa)$/i.test(e.entryName)
     )
-    .map(e => ({
-      entryName: e.entryName,
-      getData: () => e.getData(),
-      size: e.header.uncompressedSize,
-    }))
+    .map(e => {
+      checkEntrySize(e.entryName, e.header.uncompressedSize)
+      return {
+        entryName: e.entryName,
+        getData: () => e.getData(),
+        size: e.header.uncompressedSize,
+      }
+    })
 
   if (subtitleEntries.length === 0) {
     logger.warn('extractZip: no subtitle files found in archive')
@@ -83,8 +117,11 @@ function extractZip(buffer) {
   logger.debug({ count: subtitleEntries.length, files: names }, 'extractZip')
 
   const selected = selectBestSubtitle(subtitleEntries)
+  const data = selected.getData()
+  checkCompressionRatio(buffer.length, data.length)
+
   return {
-    buffer: selected.getData(),
+    buffer: data,
     filename: path.basename(selected.entryName),
   }
 }
@@ -97,6 +134,10 @@ async function extractRar(buffer) {
   const extracted = extractor.extract()
   const files = [...extracted.files]
 
+  if (files.length > config.maxArchiveEntries) {
+    throw new Error(`Rar archive has ${files.length} files, exceeds maximum ${config.maxArchiveEntries}`)
+  }
+
   const subtitleFiles = files
     .filter(f =>
       !f.fileHeader.flags.directory &&
@@ -107,6 +148,10 @@ async function extractRar(buffer) {
       getData: () => Buffer.from(f.extraction),
       size: f.fileHeader.unpSize,
     }))
+
+  for (const f of subtitleFiles) {
+    checkEntrySize(f.entryName, f.size)
+  }
 
   if (subtitleFiles.length === 0) {
     logger.warn('extractRar: no subtitle files found in archive')
@@ -142,6 +187,8 @@ async function processDownload(apiKey, subtitleId) {
     return null
   }
 
+  checkContentLength(response.headers)
+
   const cd = response.headers.get('content-disposition') || ''
   const match = cd.match(/filename="(.+)"/)
   let filename = match ? match[1] : `subtitle_${subtitleId}.srt`
@@ -153,8 +200,16 @@ async function processDownload(apiKey, subtitleId) {
   const arrayBuffer = await response.arrayBuffer()
   const buffer = Buffer.from(arrayBuffer)
 
+  const detectedExt = await detectFormat(buffer)
+
   let result
-  if (ext === '.zip') {
+  if (detectedExt === 'zip') {
+    logger.debug('detected zip archive via binary signature')
+    result = extractZip(buffer)
+  } else if (detectedExt === 'rar') {
+    logger.debug('detected rar archive via binary signature')
+    result = await extractRar(buffer)
+  } else if (ext === '.zip') {
     result = extractZip(buffer)
   } else if (ext === '.rar') {
     result = await extractRar(buffer)

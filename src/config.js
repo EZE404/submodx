@@ -8,7 +8,13 @@ const config = {
   searchCacheTTL: Math.max(0, parseInt(process.env.CACHE_SEARCH_TTL, 10) || 900),
   downloadCacheTTL: Math.max(0, parseInt(process.env.CACHE_DOWNLOAD_TTL, 10) || 86400),
   addonVersion: '1.0.0-beta',
-  logLevel: process.env.LOG_LEVEL || 'info'
+  logLevel: process.env.LOG_LEVEL || 'info',
+
+  // Safety limits (internal — not env vars)
+  maxResponseBytes: 20 * 1024 * 1024,
+  maxArchiveEntries: 1000,
+  maxEntryBytes: 10 * 1024 * 1024,
+  maxCompressionRatio: 20,
 }
 
 module.exports = config
