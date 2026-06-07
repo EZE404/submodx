@@ -10,6 +10,7 @@ const { configurePageRoute, verifyKeyRoute } = require('./routes/configure')
 const { manifestRoute } = require('./routes/manifest')
 const { subtitlesRoute } = require('./routes/subtitles')
 const { subtitleFileRoute } = require('./routes/subtitleFile')
+const subx = require('./services/subxClient')
 
 if (!config.secretWord) {
   logger.fatal('SECRET_WORD environment variable is required')
@@ -71,6 +72,28 @@ app.use((req, res, next) => {
   return generalCors(req, res, next)
 })
 
+// Health endpoints — registered before rate limiter so probes are never blocked
+app.get('/healthz', (req, res) => {
+  res.json({ status: 'ok', uptime: process.uptime() })
+})
+
+app.get('/readyz', async (req, res) => {
+  try {
+    const result = await Promise.race([
+      subx.healthCheck(),
+      new Promise((_, reject) => setTimeout(() => reject(new Error('SubX health check timed out')), 5000)),
+    ])
+    if (result) {
+      res.json({ status: 'ok' })
+    } else {
+      res.status(503).json({ status: 'degraded' })
+    }
+  } catch (err) {
+    logger.warn({ err }, 'readyz: SubX unreachable')
+    res.status(503).json({ status: 'not ready' })
+  }
+})
+
 const generalLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
   max: 100,
@@ -105,7 +128,7 @@ app.get(subpath, (req, res) => {
 })
 
 app.use((req, res) => {
-  res.status(200).json({ subtitles: [] })
+  res.status(404).json({ error: 'Not found' })
 })
 
 const server = app.listen(config.port, () => {
