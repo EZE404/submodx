@@ -1,6 +1,7 @@
 const express = require('express')
 const cors = require('cors')
 const helmet = require('helmet')
+const rateLimit = require('express-rate-limit')
 const path = require('path')
 const config = require('./config')
 const { configurePageRoute, verifyKeyRoute } = require('./routes/configure')
@@ -49,6 +50,23 @@ app.use((req, res, next) => {
   return generalCors(req, res, next)
 })
 
+const generalLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 100,
+  standardHeaders: 'draft-8',
+  legacyHeaders: false,
+})
+
+const verifyKeyLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 5,
+  message: { error: 'Demasiadas solicitudes. Intenta de nuevo en 15 minutos.' },
+  standardHeaders: 'draft-8',
+  legacyHeaders: false,
+})
+
+app.use(generalLimiter)
+
 app.use((req, res, next) => {
   console.log(`[SubX] ${req.method} ${req.originalUrl}`)
   next()
@@ -57,7 +75,7 @@ app.use((req, res, next) => {
 app.use(subpath, express.static(path.join(__dirname, '..', 'public')))
 
 app.get(subpath + '/configure', configurePageRoute)
-app.post(subpath + '/api/verify-key', verifyKeyRoute)
+app.post(subpath + '/api/verify-key', verifyKeyLimiter, verifyKeyRoute)
 
 app.get(subpath + '/manifest.json', manifestRoute)
 app.get(subpath + '/:config/manifest.json', manifestRoute)
