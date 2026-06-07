@@ -108,6 +108,29 @@ app.use((req, res) => {
   res.status(200).json({ subtitles: [] })
 })
 
-app.listen(config.port, () => {
+const server = app.listen(config.port, () => {
   logger.info({ port: config.port, baseUrl: config.baseUrl, subxBaseUrl: config.subxBaseUrl }, 'Server started')
+})
+
+process.on('SIGTERM', () => {
+  logger.info('SIGTERM received — draining connections')
+
+  server.close(() => {
+    logger.info('All connections closed, exiting')
+    process.exit(0)
+  })
+
+  setTimeout(() => {
+    logger.error('Forced shutdown after timeout')
+    process.exit(1)
+  }, 30000)
+})
+
+process.on('unhandledRejection', (reason) => {
+  logger.error({ err: reason }, 'Unhandled Promise rejection')
+})
+
+process.on('uncaughtException', (err) => {
+  logger.fatal({ err }, 'Uncaught exception')
+  process.exit(1)
 })
