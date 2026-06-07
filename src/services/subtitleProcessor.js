@@ -4,6 +4,7 @@ const { createCache } = require('./cache')
 const { createFileCache } = require('./fileCache')
 const config = require('../config')
 const { ensureUtf8 } = require('../utils/ensureUtf8')
+const { sanitizeFilename, sanitizeForLogs } = require('../utils/sanitize')
 
 const downloadCache = config.cacheDir
   ? createFileCache(config.cacheDir)
@@ -52,7 +53,7 @@ function selectBestSubtitle(entries) {
   candidates.sort((a, b) => a.extScore - b.extScore || b.entry.size - a.entry.size)
 
   const selected = candidates[0].entry
-  console.log(`[SubX] selectBestSubtitle: total=${entries.length} full=${full.length} forced=${forced.length} selected="${selected.entryName}" (size=${selected.size})`)
+  console.log(`[SubX] selectBestSubtitle: total=${entries.length} full=${full.length} forced=${forced.length} selected="${sanitizeForLogs(selected.entryName)}" (size=${selected.size})`)
   return selected
 }
 
@@ -77,7 +78,7 @@ function extractZip(buffer) {
     return null
   }
 
-  const names = subtitleEntries.map(e => `"${e.entryName}" (${e.size}B)`).join(', ')
+  const names = subtitleEntries.map(e => `"${sanitizeForLogs(e.entryName)}" (${e.size}B)`).join(', ')
   console.log(`[SubX] extractZip: found ${subtitleEntries.length} files: ${names}`)
 
   const selected = selectBestSubtitle(subtitleEntries)
@@ -111,7 +112,7 @@ async function extractRar(buffer) {
     return null
   }
 
-  const names = subtitleFiles.map(e => `"${e.entryName}" (${e.size}B)`).join(', ')
+  const names = subtitleFiles.map(e => `"${sanitizeForLogs(e.entryName)}" (${e.size}B)`).join(', ')
   console.log(`[SubX] extractRar: found ${subtitleFiles.length} files: ${names}`)
 
   const selected = selectBestSubtitle(subtitleFiles)
@@ -138,9 +139,10 @@ async function processDownload(apiKey, subtitleId) {
   const cd = response.headers.get('content-disposition') || ''
   const match = cd.match(/filename="(.+)"/)
   let filename = match ? match[1] : `subtitle_${subtitleId}.srt`
+  filename = sanitizeFilename(filename)
   const ext = path.extname(filename).toLowerCase()
 
-  console.log(`[SubX] processDownload: original filename="${filename}" ext=${ext} size=${response.headers.get('content-length') || 'unknown'} bytes`)
+  console.log(`[SubX] processDownload: original filename="${sanitizeForLogs(filename)}" ext=${ext} size=${response.headers.get('content-length') || 'unknown'} bytes`)
 
   const arrayBuffer = await response.arrayBuffer()
   const buffer = Buffer.from(arrayBuffer)

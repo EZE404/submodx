@@ -1,6 +1,7 @@
 const { decryptApiKey } = require('../crypto')
 const { processDownload, getContentType } = require('../services/subtitleProcessor')
 const config = require('../config')
+const { sanitizeFilename } = require('../utils/sanitize')
 
 async function subtitleFileRoute(req, res) {
   res.setHeader('Access-Control-Allow-Origin', '*')
@@ -19,10 +20,11 @@ async function subtitleFileRoute(req, res) {
     return res.status(404).end()
   }
 
+  const safeFilename = sanitizeFilename(result.filename)
   const contentType = getContentType(result.filename)
-  console.log(`[SubX] subtitleFileRoute: serving "${result.filename}" (${result.buffer.length} bytes, ${contentType})`)
+  console.log(`[SubX] subtitleFileRoute: serving "${safeFilename}" (${result.buffer.length} bytes, ${contentType})`)
   res.setHeader('Content-Type', contentType)
-  res.setHeader('Content-Disposition', `inline; filename="${result.filename}"`)
+  res.setHeader('Content-Disposition', `inline; filename="${safeFilename}"`)
   res.send(result.buffer)
 }
 
