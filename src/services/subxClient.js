@@ -33,6 +33,11 @@ async function verifyKey(apiKey) {
     })
     logger.info({ status: res.status, valid: res.ok }, 'verifyKey: result')
     logRateLimit(res, 'verifyKey')
+    if (res.status === 429) {
+      const retryAfter = parseInt(res.headers.get('Retry-After') || '60', 10)
+      logger.warn({ retryAfter }, 'verifyKey: rate limited')
+      return { valid: false, status: 429, rateLimited: true, retryAfter }
+    }
     return { valid: res.ok, status: res.status }
   } catch (err) {
     logger.error({ err }, 'verifyKey: error')
@@ -50,7 +55,14 @@ async function search(apiKey, params) {
     })
     logger.debug({ status: res.status }, 'search: status')
     logRateLimit(res, 'search')
-    if (!res.ok) return null
+    if (!res.ok) {
+      if (res.status === 429) {
+        const retryAfter = parseInt(res.headers.get('Retry-After') || '60', 10)
+        logger.warn({ retryAfter }, 'search: rate limited')
+        return { rateLimited: true, retryAfter }
+      }
+      return null
+    }
     const data = await res.json()
     logger.info({ count: data?.items?.length || 0 }, 'search: results')
     return data
@@ -68,7 +80,14 @@ async function downloadRaw(apiKey, subtitleId) {
     })
     logger.debug({ status: res.status, ok: res.ok }, 'downloadRaw: result')
     logRateLimit(res, 'downloadRaw')
-    if (!res.ok) return null
+    if (!res.ok) {
+      if (res.status === 429) {
+        const retryAfter = parseInt(res.headers.get('Retry-After') || '60', 10)
+        logger.warn({ retryAfter, subtitleId }, 'downloadRaw: rate limited')
+        return { rateLimited: true, retryAfter, status: 429 }
+      }
+      return null
+    }
     return res
   } catch (err) {
     logger.error({ err, subtitleId }, 'downloadRaw: error')

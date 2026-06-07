@@ -51,6 +51,15 @@ async function handleSubtitleRequest(apiKey, type, id, baseUrl, configToken) {
   }
   const searchParams = buildSearchParams(parsed)
   const data = await subx.search(apiKey, searchParams)
+  if (data?.rateLimited) {
+    logger.warn({ retryAfter: data.retryAfter, imdbId: parsed.imdbId }, 'Search rate-limited, returning synthetic entry')
+    return [{
+      id: `subx-rate-limit-hit-wait-${data.retryAfter}s`,
+      url: '',
+      lang: 'spa',
+      title: `[SubmodX] Límite de API alcanzado — espera ${data.retryAfter}s`,
+    }]
+  }
   if (data) {
     searchCache.set(cacheKey, data, config.searchCacheTTL)
   }

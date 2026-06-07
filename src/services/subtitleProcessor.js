@@ -132,6 +132,11 @@ async function processDownload(apiKey, subtitleId) {
   }
 
   const response = await subx.downloadRaw(apiKey, subtitleId)
+  if (response?.rateLimited) {
+    logger.warn({ retryAfter: response.retryAfter, subtitleId }, 'Download rate-limited')
+    const message = `[SubmodX] Límite de API alcanzado. Espera ${response.retryAfter} segundos e intenta de nuevo.`
+    return { buffer: Buffer.from(message), filename: `rate_limited_${subtitleId}.srt` }
+  }
   if (!response) {
     logger.warn({ subtitleId }, 'processDownload: SubX returned no response')
     return null
