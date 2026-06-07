@@ -1,5 +1,6 @@
 const fs = require('fs')
 const path = require('path')
+const logger = require('./logger')
 
 function sanitizeKey(key) {
   return String(key).replace(/[^a-zA-Z0-9_-]/g, '_')
@@ -45,7 +46,7 @@ function createFileCache(cacheDir) {
     try {
       fs.mkdirSync(cacheDir, { recursive: true })
     } catch (err) {
-      console.error(`[SubX] fileCache: failed to create cache dir "${cacheDir}": ${err.message}`)
+      logger.error({ cacheDir, err }, 'fileCache: failed to create cache dir')
       return
     }
 
@@ -62,7 +63,7 @@ function createFileCache(cacheDir) {
       fs.writeFileSync(datPath, value.buffer)
       fs.writeFileSync(metaPath, JSON.stringify(meta))
     } catch (err) {
-      console.error(`[SubX] fileCache: failed to write cache entry "${sk}": ${err.message}`)
+      logger.error({ key: sk, err }, 'fileCache: failed to write cache entry')
       try { fs.unlinkSync(datPath) } catch {}
       try { fs.unlinkSync(metaPath) } catch {}
     }

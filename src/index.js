@@ -2,31 +2,33 @@ const express = require('express')
 const cors = require('cors')
 const helmet = require('helmet')
 const rateLimit = require('express-rate-limit')
+const pinoHttp = require('pino-http')
 const path = require('path')
 const config = require('./config')
+const logger = require('./services/logger')
 const { configurePageRoute, verifyKeyRoute } = require('./routes/configure')
 const { manifestRoute } = require('./routes/manifest')
 const { subtitlesRoute } = require('./routes/subtitles')
 const { subtitleFileRoute } = require('./routes/subtitleFile')
 
 if (!config.secretWord) {
-  console.error('[SubX] FATAL: SECRET_WORD environment variable is required')
+  logger.fatal('SECRET_WORD environment variable is required')
   process.exit(1)
 }
 
 if (config.secretWord.length < 32) {
-  console.error('[SubX] FATAL: SECRET_WORD must be at least 32 characters long')
+  logger.fatal('SECRET_WORD must be at least 32 characters long')
   process.exit(1)
 }
 
 const COMMON_DEFAULTS = ['change-me-to-a-strong-random-secret', 'secret', 'password']
 if (COMMON_DEFAULTS.includes(config.secretWord)) {
-  console.error('[SubX] FATAL: SECRET_WORD must not be a default/example value')
+  logger.fatal('SECRET_WORD must not be a default/example value')
   process.exit(1)
 }
 
 if (!process.env.BASE_URL && !process.env.SPACE_HOST) {
-  console.error('[SubX] FATAL: BASE_URL or SPACE_HOST environment variable is required')
+  logger.fatal('BASE_URL or SPACE_HOST environment variable is required')
   process.exit(1)
 }
 
@@ -37,6 +39,25 @@ app.use(helmet())
 app.use(express.json())
 
 const subpath = new URL(config.baseUrl).pathname.replace(/\/$/, '')
+
+app.use(pinoHttp({
+  logger,
+  autoLogging: true,
+  serializers: {
+    req: (req) => ({
+      method: req.method,
+      url: req.url.replace(/\/[A-Za-z0-9_-]{40,}/g, '/[TOKEN]'),
+    }),
+    res: (res) => ({
+      statusCode: res.statusCode,
+    }),
+    err: (err) => ({
+      type: err.type,
+      message: err.message,
+      stack: err.stack,
+    }),
+  },
+}))
 
 const verifyKeyCors = cors({
   origin: config.baseUrl.replace(/\/$/, ''),
@@ -67,11 +88,6 @@ const verifyKeyLimiter = rateLimit({
 
 app.use(generalLimiter)
 
-app.use((req, res, next) => {
-  console.log(`[SubX] ${req.method} ${req.originalUrl}`)
-  next()
-})
-
 app.use(subpath, express.static(path.join(__dirname, '..', 'public')))
 
 app.get(subpath + '/configure', configurePageRoute)
@@ -93,7 +109,5 @@ app.use((req, res) => {
 })
 
 app.listen(config.port, () => {
-  console.log(`[SubX] SubX Subtitles addon running on port ${config.port}`)
-  console.log(`[SubX] BASE_URL: ${config.baseUrl}`)
-  console.log(`[SubX] SUBX_BASE_URL: ${config.subxBaseUrl}`)
+  logger.info({ port: config.port, baseUrl: config.baseUrl, subxBaseUrl: config.subxBaseUrl }, 'Server started')
 })

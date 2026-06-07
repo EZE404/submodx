@@ -3,6 +3,7 @@ const subx = require('./subxClient')
 const { createCache } = require('./cache')
 const { createFileCache } = require('./fileCache')
 const config = require('../config')
+const logger = require('./logger')
 const { ensureUtf8 } = require('../utils/ensureUtf8')
 const { sanitizeFilename, sanitizeForLogs } = require('../utils/sanitize')
 
@@ -53,7 +54,7 @@ function selectBestSubtitle(entries) {
   candidates.sort((a, b) => a.extScore - b.extScore || b.entry.size - a.entry.size)
 
   const selected = candidates[0].entry
-  console.log(`[SubX] selectBestSubtitle: total=${entries.length} full=${full.length} forced=${forced.length} selected="${sanitizeForLogs(selected.entryName)}" (size=${selected.size})`)
+  logger.debug({ total: entries.length, full: full.length, forced: forced.length, selected: sanitizeForLogs(selected.entryName), size: selected.size }, 'selectBestSubtitle')
   return selected
 }
 
@@ -74,12 +75,12 @@ function extractZip(buffer) {
     }))
 
   if (subtitleEntries.length === 0) {
-    console.log(`[SubX] extractZip: no subtitle files found in archive`)
+    logger.warn('extractZip: no subtitle files found in archive')
     return null
   }
 
   const names = subtitleEntries.map(e => `"${sanitizeForLogs(e.entryName)}" (${e.size}B)`).join(', ')
-  console.log(`[SubX] extractZip: found ${subtitleEntries.length} files: ${names}`)
+  logger.debug({ count: subtitleEntries.length, files: names }, 'extractZip')
 
   const selected = selectBestSubtitle(subtitleEntries)
   return {
@@ -108,12 +109,12 @@ async function extractRar(buffer) {
     }))
 
   if (subtitleFiles.length === 0) {
-    console.log(`[SubX] extractRar: no subtitle files found in archive`)
+    logger.warn('extractRar: no subtitle files found in archive')
     return null
   }
 
   const names = subtitleFiles.map(e => `"${sanitizeForLogs(e.entryName)}" (${e.size}B)`).join(', ')
-  console.log(`[SubX] extractRar: found ${subtitleFiles.length} files: ${names}`)
+  logger.debug({ count: subtitleFiles.length, files: names }, 'extractRar')
 
   const selected = selectBestSubtitle(subtitleFiles)
   return {
@@ -126,13 +127,13 @@ async function processDownload(apiKey, subtitleId) {
   const cacheKey = `download:${subtitleId}`
   const cached = downloadCache.get(cacheKey)
   if (cached !== undefined) {
-    console.log(`[SubX] downloadCache: HIT for ${cacheKey}`)
+    logger.debug({ cacheKey }, 'downloadCache: HIT')
     return cached
   }
 
   const response = await subx.downloadRaw(apiKey, subtitleId)
   if (!response) {
-    console.log(`[SubX] processDownload: SubX returned no response for ${subtitleId}`)
+    logger.warn({ subtitleId }, 'processDownload: SubX returned no response')
     return null
   }
 
@@ -142,7 +143,7 @@ async function processDownload(apiKey, subtitleId) {
   filename = sanitizeFilename(filename)
   const ext = path.extname(filename).toLowerCase()
 
-  console.log(`[SubX] processDownload: original filename="${sanitizeForLogs(filename)}" ext=${ext} size=${response.headers.get('content-length') || 'unknown'} bytes`)
+  logger.debug({ filename: sanitizeForLogs(filename), ext, size: response.headers.get('content-length') || 'unknown' }, 'processDownload')
 
   const arrayBuffer = await response.arrayBuffer()
   const buffer = Buffer.from(arrayBuffer)
@@ -153,7 +154,7 @@ async function processDownload(apiKey, subtitleId) {
   } else if (ext === '.rar') {
     result = await extractRar(buffer)
   } else {
-    console.log(`[SubX] processDownload: passthrough format (${ext})`)
+    logger.debug({ ext }, 'processDownload: passthrough format')
     result = { buffer, filename }
   }
 

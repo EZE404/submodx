@@ -1,6 +1,7 @@
 const subx = require('./subxClient')
 const { createCache } = require('./cache')
 const config = require('../config')
+const logger = require('./logger')
 
 const searchCache = createCache()
 
@@ -41,11 +42,11 @@ function buildSubtitles(subxData, baseUrl, configToken) {
 
 async function handleSubtitleRequest(apiKey, type, id, baseUrl, configToken) {
   const parsed = parseStremioId(id, type)
-  console.log(`[SubX] handleSubtitleRequest: type=${type} imdbId=${parsed.imdbId} season=${parsed.season} episode=${parsed.episode}`)
+  logger.debug({ type, imdbId: parsed.imdbId, season: parsed.season, episode: parsed.episode }, 'handleSubtitleRequest')
   const cacheKey = `search:${parsed.imdbId}:${parsed.season ?? ''}:${parsed.episode ?? ''}`
   const cached = searchCache.get(cacheKey)
   if (cached !== undefined) {
-    console.log(`[SubX] searchCache: HIT for ${cacheKey}`)
+    logger.debug({ cacheKey }, 'searchCache: HIT')
     return buildSubtitles(cached, baseUrl, configToken)
   }
   const searchParams = buildSearchParams(parsed)
@@ -54,7 +55,7 @@ async function handleSubtitleRequest(apiKey, type, id, baseUrl, configToken) {
     searchCache.set(cacheKey, data, config.searchCacheTTL)
   }
   const subtitles = buildSubtitles(data, baseUrl, configToken)
-  console.log(`[SubX] handleSubtitleRequest: built ${subtitles.length} subtitle objects`)
+  logger.info({ count: subtitles.length, imdbId: parsed.imdbId }, 'handleSubtitleRequest: built subtitle objects')
   return subtitles
 }
 

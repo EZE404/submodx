@@ -3,23 +3,24 @@ const fs = require('fs')
 const crypto = require('../crypto')
 const subx = require('../services/subxClient')
 const config = require('../config')
+const logger = require('../services/logger')
 
 const templatePath = path.join(__dirname, '..', 'views', 'configure.html')
 const template = fs.readFileSync(templatePath, 'utf-8')
 
 async function verifyKeyRoute(req, res) {
-  console.log(`[SubX] verifyKeyRoute: received key verification request`)
+  logger.info('verifyKeyRoute: received key verification request')
   res.setHeader('Content-Type', 'application/json; charset=utf-8')
 
   const { apiKey } = req.body || {}
   if (!apiKey) {
-    console.log(`[SubX] verifyKeyRoute: missing apiKey in body`)
+    logger.warn('verifyKeyRoute: missing apiKey in body')
     return res.json({ valid: false, error: 'API key es requerida' })
   }
 
-  console.log(`[SubX] verifyKeyRoute: apiKey length=${apiKey.length}`)
+  logger.debug({ apiKeyLength: apiKey.length }, 'verifyKeyRoute')
   const result = await subx.verifyKey(apiKey)
-  console.log(`[SubX] verifyKeyRoute: SubX verify returned valid=${result.valid}`)
+  logger.info({ valid: result.valid }, 'verifyKeyRoute: SubX verify result')
 
   if (result.valid) {
     const token = crypto.encryptApiKey(apiKey)
@@ -40,7 +41,7 @@ async function verifyKeyRoute(req, res) {
     const stremioUrl =
       `stremio://${urlWithoutProtocol}/${token}/manifest.json`
 
-    console.log(`[SubX] verifyKeyRoute: token generated (${token.length} chars)`)
+    logger.debug({ tokenLength: token.length }, 'verifyKeyRoute: token generated')
 
     return res.json({
       valid: true,
@@ -50,7 +51,7 @@ async function verifyKeyRoute(req, res) {
     })
   }
 
-  console.log(`[SubX] verifyKeyRoute: key rejected by SubX`)
+  logger.info('verifyKeyRoute: key rejected by SubX')
   res.json({ valid: false, error: 'Clave API inv\u00e1lida. Verifica que la clave sea correcta.' })
 }
 

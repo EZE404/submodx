@@ -1,10 +1,11 @@
 const crypto = require('crypto')
 const config = require('./config')
+const logger = require('./services/logger')
 
 const ENCRYPTION_KEY = crypto.scryptSync(config.secretWord, 'subx-addon-salt', 32)
 
 function encryptApiKey(apiKey) {
-  console.log(`[SubX] encryptApiKey: generating token for apiKey length=${apiKey.length}`)
+  logger.debug({ apiKeyLength: apiKey.length }, 'encryptApiKey: generating token')
   const payload = JSON.stringify({
     v: 1,
     apiKey: apiKey,
@@ -24,7 +25,7 @@ function encryptApiKey(apiKey) {
 }
 
 function decryptApiKey(token) {
-  console.log(`[SubX] decryptApiKey: token length=${token.length}`)
+  logger.debug({ tokenLength: token.length }, 'decryptApiKey')
   try {
     const combined = Buffer.from(token, 'base64url')
 
@@ -41,10 +42,10 @@ function decryptApiKey(token) {
     const payload = JSON.parse(decrypted)
     if (payload.v !== 1) return null
 
-    console.log(`[SubX] decryptApiKey: success, apiKey length=${payload.apiKey.length}`)
+    logger.debug({ apiKeyLength: payload.apiKey.length }, 'decryptApiKey: success')
     return payload.apiKey
   } catch (err) {
-    console.log(`[SubX] decryptApiKey: failed - ${err.message}`)
+    logger.warn({ err }, 'decryptApiKey: failed')
     return null
   }
 }
