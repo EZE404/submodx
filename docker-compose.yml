@@ -8,6 +8,35 @@ services:
     volumes:
       - submodx-cache:/app/cache
     restart: unless-stopped
+    stop_grace_period: 30s
+    deploy:
+      resources:
+        # ── CPU ──────────────────────────────────────────────────────────
+        # This addon is I/O–bound (HTTP calls to SubX, archive extraction).
+        # CPU spikes happen only during zip/rar extraction; the rest is idle.
+        # Without Valkey (shared cache) each replica repeats work, raising
+        # CPU usage under identical traffic.
+        #   limits:  hard ceiling — the container never bursts past it.
+        #   reservations: guaranteed floor — the scheduler reserves this.
+        #   — 1 replica:  limits: "2.0"   reservations: "0.5"
+        #   — 2 replicas: limits: "1.0"   reservations: "0.25"
+        #   — 3 replicas: limits: "0.5"   reservations: "0.25"
+        # ── Memory ────────────────────────────────────────────────────────
+        # Each subtitle download processes up to 50 MB in memory (buffer +
+        # extraction + UTF–8 conversion). Under concurrent load several of
+        # these can be in–flight at once. Node's own heap (--max-old-space-size
+        # in the Dockerfile) must fit inside this limit.
+        #   limits:  hard OOM ceiling.
+        #   reservations: ensures the scheduler doesn't overcommit.
+        #   — 1 replica:  limits: "2048M"   reservations: "512M"
+        #   — 2 replicas: limits: "1024M"   reservations: "256M"
+        #   — 3 replicas: limits: "512M"    reservations: "256M"
+        limits:
+          cpus: '${SUBX_CPU_LIMIT:-0.5}'
+          memory: '${SUBX_MEM_LIMIT:-512M}'
+        reservations:
+          cpus: '${SUBX_CPU_RESERVATION:-0.25}'
+          memory: '${SUBX_MEM_RESERVATION:-256M}'
 
 volumes:
   submodx-cache:
