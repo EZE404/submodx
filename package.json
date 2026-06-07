@@ -2,6 +2,9 @@
   "name": "submodx-subtitles-addon",
   "version": "1.0.0-beta",
   "description": "Stremio addon for Spanish subtitles via SubX API",
+  "engines": {
+    "node": ">=20.6"
+  },
   "main": "src/index.js",
   "scripts": {
     "start": "node --env-file=.env src/index.js",

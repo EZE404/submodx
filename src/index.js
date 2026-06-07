@@ -13,6 +13,22 @@ if (!config.secretWord) {
   process.exit(1)
 }
 
+if (config.secretWord.length < 32) {
+  console.error('[SubX] FATAL: SECRET_WORD must be at least 32 characters long')
+  process.exit(1)
+}
+
+const COMMON_DEFAULTS = ['change-me-to-a-strong-random-secret', 'secret', 'password']
+if (COMMON_DEFAULTS.includes(config.secretWord)) {
+  console.error('[SubX] FATAL: SECRET_WORD must not be a default/example value')
+  process.exit(1)
+}
+
+if (!process.env.BASE_URL && !process.env.SPACE_HOST) {
+  console.error('[SubX] FATAL: BASE_URL or SPACE_HOST environment variable is required')
+  process.exit(1)
+}
+
 const app = express()
 
 app.set('trust proxy', 1)
