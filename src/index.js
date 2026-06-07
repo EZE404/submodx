@@ -1,5 +1,6 @@
 const express = require('express')
 const cors = require('cors')
+const helmet = require('helmet')
 const path = require('path')
 const config = require('./config')
 const { configurePageRoute, verifyKeyRoute } = require('./routes/configure')
@@ -14,15 +15,28 @@ if (!config.secretWord) {
 
 const app = express()
 
-app.use(cors())
+app.set('trust proxy', 1)
+app.use(helmet())
 app.use(express.json())
+
+const subpath = new URL(config.baseUrl).pathname.replace(/\/$/, '')
+
+const verifyKeyCors = cors({
+  origin: config.baseUrl.replace(/\/$/, ''),
+})
+const generalCors = cors()
+
+app.use((req, res, next) => {
+  if (req.path.startsWith(subpath + '/api/verify-key')) {
+    return verifyKeyCors(req, res, next)
+  }
+  return generalCors(req, res, next)
+})
 
 app.use((req, res, next) => {
   console.log(`[SubX] ${req.method} ${req.originalUrl}`)
   next()
 })
-
-const subpath = new URL(config.baseUrl).pathname.replace(/\/$/, '')
 
 app.use(subpath, express.static(path.join(__dirname, '..', 'public')))
 

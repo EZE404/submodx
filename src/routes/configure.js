@@ -10,7 +10,6 @@ const template = fs.readFileSync(templatePath, 'utf-8')
 async function verifyKeyRoute(req, res) {
   console.log(`[SubX] verifyKeyRoute: received key verification request`)
   res.setHeader('Content-Type', 'application/json; charset=utf-8')
-  res.setHeader('Access-Control-Allow-Origin', '*')
 
   const { apiKey } = req.body || {}
   if (!apiKey) {
