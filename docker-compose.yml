@@ -1,12 +1,30 @@
 services:
+  valkey:
+    image: valkey/valkey:7-alpine
+    container_name: submodx-valkey
+    command: valkey-server --maxmemory ${VALKEY_MAX_MEMORY:-1gb} --maxmemory-policy allkeys-lru
+    healthcheck:
+      test: ["CMD", "valkey-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+    volumes:
+      - valkey-data:/data
+    restart: unless-stopped
+    networks:
+      - submodx-net
+
   submodx:
     build: .
     container_name: submodx
     env_file: .env
+    depends_on:
+      valkey:
+        condition: service_healthy
     ports:
       - "${PORT}:${PORT}"
     volumes:
-      - submodx-cache:/app/cache
+      - subtitle-cache:/cache/subtitles
     restart: unless-stopped
     stop_grace_period: 30s
     deploy:
@@ -37,7 +55,16 @@ services:
         reservations:
           cpus: '${SUBX_CPU_RESERVATION:-0.25}'
           memory: '${SUBX_MEM_RESERVATION:-256M}'
+    networks:
+      - submodx-net
 
 volumes:
-  submodx-cache:
+  valkey-data:
     driver: local
+  subtitle-cache:
+    driver: local
+
+networks:
+  submodx-net:
+    name: submodx-net
+    driver: bridge

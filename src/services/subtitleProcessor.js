@@ -1,9 +1,9 @@
 const path = require('path')
 const subx = require('./subxClient')
-const { createCache } = require('./cache')
-const { createFileCache } = require('./fileCache')
+const { getSubtitleHotCache, getPersistentStorage } = require('../storage')
 const config = require('../config')
 const logger = require('./logger')
+const metrics = require('./metrics')
 const { ensureUtf8 } = require('../utils/ensureUtf8')
 const { sanitizeFilename, sanitizeForLogs } = require('../utils/sanitize')
 const {
@@ -11,10 +11,6 @@ const {
   checkEntrySize,
   checkCompressionRatio,
 } = require('../utils/sizeLimits')
-
-const downloadCache = config.cacheDir
-  ? createFileCache(config.cacheDir)
-  : createCache()
 
 const EXT_TO_MIME = {
   '.srt': 'application/x-subrip; charset=utf-8',
@@ -78,7 +74,7 @@ async function detectFormat(buffer) {
   try {
     const { fileTypeFromBuffer } = await import('file-type')
     const type = await fileTypeFromBuffer(buffer)
-    if (type?.ext === 'zip' || type?.ext === 'rar') return type.ext
+    if (type) return type.ext
   } catch {
     logger.debug('file-type import failed, falling back to magic-byte detection')
   }
@@ -169,12 +165,33 @@ async function extractRar(buffer) {
 }
 
 async function processDownload(apiKey, subtitleId) {
-  const cacheKey = `download:${subtitleId}`
-  const cached = downloadCache.get(cacheKey)
-  if (cached !== undefined) {
-    logger.debug({ cacheKey }, 'downloadCache: HIT')
-    return cached
+  const hotCache = getSubtitleHotCache()
+  const storage = getPersistentStorage()
+
+  // Tier 1: Valkey hot cache
+  const meta = await hotCache.get(subtitleId)
+  if (meta) {
+    const file = await storage.get(subtitleId)
+    if (file) {
+      logger.debug({ subtitleId }, 'downloadCache: HIT (hot)')
+      metrics.cacheHits.inc({ type: 'subtitle_hot' })
+      return file
+    }
+    // Metadata exists but file is missing from disk — fall through
+    logger.warn({ subtitleId }, 'downloadCache: hot cache meta present but file missing from storage')
   }
+
+  // Tier 2: Persistent storage
+  const file = await storage.get(subtitleId)
+  if (file) {
+    logger.debug({ subtitleId }, 'downloadCache: HIT (storage)')
+    metrics.cacheHits.inc({ type: 'subtitle_storage' })
+    await hotCache.set(subtitleId, { id: subtitleId, ext: file.ext, storedAt: Date.now() }, config.subtitleCacheTTL)
+    return file
+  }
+
+  // Tier 3: Complete miss
+  metrics.cacheMisses.inc({ type: 'subtitle_storage' })
 
   const response = await subx.downloadRaw(apiKey, subtitleId)
   if (response?.rateLimited) {
@@ -209,6 +226,11 @@ async function processDownload(apiKey, subtitleId) {
   } else if (detectedExt === 'rar') {
     logger.debug('detected rar archive via binary signature')
     result = await extractRar(buffer)
+  } else if (detectedExt === 'srt' || detectedExt === 'sub' || detectedExt === 'ass' || detectedExt === 'ssa') {
+    const useExt = detectedExt
+    const useFilename = `subtitle_${subtitleId}.${useExt}`
+    logger.debug({ ext: useExt }, 'processDownload: detected direct subtitle format')
+    result = { buffer, filename: useFilename }
   } else if (ext === '.zip') {
     result = extractZip(buffer)
   } else if (ext === '.rar') {
@@ -220,7 +242,9 @@ async function processDownload(apiKey, subtitleId) {
 
   if (result) {
     result.buffer = ensureUtf8(result.buffer)
-    downloadCache.set(cacheKey, result, config.downloadCacheTTL)
+    const resultExt = path.extname(result.filename).toLowerCase().replace('.', '') || 'srt'
+    await storage.set(subtitleId, { buffer: result.buffer, filename: result.filename, ext: resultExt })
+    await hotCache.set(subtitleId, { id: subtitleId, ext: resultExt, storedAt: Date.now() }, config.subtitleCacheTTL)
   }
   return result
 }

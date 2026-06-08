@@ -1,9 +1,8 @@
 const subx = require('./subxClient')
-const { createCache } = require('./cache')
+const { getSearchCache } = require('../storage')
 const config = require('../config')
 const logger = require('./logger')
-
-const searchCache = createCache()
+const metrics = require('./metrics')
 
 function parseStremioId(rawId, type) {
   const id = rawId.replace(/\.json$/, '')
@@ -43,12 +42,17 @@ function buildSubtitles(subxData, baseUrl, configToken) {
 async function handleSubtitleRequest(apiKey, type, id, baseUrl, configToken) {
   const parsed = parseStremioId(id, type)
   logger.debug({ type, imdbId: parsed.imdbId, season: parsed.season, episode: parsed.episode }, 'handleSubtitleRequest')
-  const cacheKey = `search:${parsed.imdbId}:${parsed.season ?? ''}:${parsed.episode ?? ''}`
-  const cached = searchCache.get(cacheKey)
+  const cacheKey = `${parsed.imdbId}:${parsed.season ?? ''}:${parsed.episode ?? ''}`
+  const searchCache = getSearchCache()
+
+  const cached = await searchCache.get(cacheKey)
   if (cached !== undefined) {
     logger.debug({ cacheKey }, 'searchCache: HIT')
+    metrics.cacheHits.inc({ type: 'search' })
     return buildSubtitles(cached, baseUrl, configToken)
   }
+  metrics.cacheMisses.inc({ type: 'search' })
+
   const searchParams = buildSearchParams(parsed)
   const data = await subx.search(apiKey, searchParams)
   if (data?.rateLimited) {
@@ -61,7 +65,7 @@ async function handleSubtitleRequest(apiKey, type, id, baseUrl, configToken) {
     }]
   }
   if (data) {
-    searchCache.set(cacheKey, data, config.searchCacheTTL)
+    await searchCache.set(cacheKey, data, config.searchCacheTTL)
   }
   const subtitles = buildSubtitles(data, baseUrl, configToken)
   logger.info({ count: subtitles.length, imdbId: parsed.imdbId }, 'handleSubtitleRequest: built subtitle objects')

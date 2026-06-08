@@ -159,22 +159,37 @@ app.use((req, res) => {
   res.status(404).json({ error: 'Not found' })
 })
 
-const server = app.listen(config.port, () => {
-  logger.info({ port: config.port, baseUrl: config.baseUrl, subxBaseUrl: config.subxBaseUrl }, 'Server started')
-})
+const { initStorage, disconnectStorage } = require('./storage')
 
-process.on('SIGTERM', () => {
-  logger.info('SIGTERM received — draining connections')
+async function start() {
+  await initStorage()
 
-  server.close(() => {
-    logger.info('All connections closed, exiting')
-    process.exit(0)
+  logger.info({ valkeyHost: config.valkeyHost, valkeyPort: config.valkeyPort }, 'Valkey connected')
+
+  const server = app.listen(config.port, () => {
+    logger.info({ port: config.port, baseUrl: config.baseUrl, subxBaseUrl: config.subxBaseUrl }, 'Server started')
   })
 
-  setTimeout(() => {
-    logger.error('Forced shutdown after timeout')
-    process.exit(1)
-  }, 30000)
+  process.on('SIGTERM', async () => {
+    logger.info('SIGTERM received — draining connections')
+
+    server.close(async () => {
+      await disconnectStorage()
+      logger.info('All connections closed, exiting')
+      process.exit(0)
+    })
+
+    setTimeout(async () => {
+      await disconnectStorage()
+      logger.error('Forced shutdown after timeout')
+      process.exit(1)
+    }, 30000)
+  })
+}
+
+start().catch((err) => {
+  logger.fatal({ err }, 'Failed to start server')
+  process.exit(1)
 })
 
 process.on('unhandledRejection', (reason) => {
