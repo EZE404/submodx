@@ -12,7 +12,7 @@ const config = {
   valkeyPort: parseInt(process.env.VALKEY_PORT, 10) || 6379,
   cacheDirectory: process.env.CACHE_DIRECTORY || '/cache/subtitles',
   subtitleCacheTTL: Math.max(0, parseInt(process.env.SUBTITLE_CACHE_TTL_SECONDS || process.env.CACHE_DOWNLOAD_TTL, 10) || 604800),
-  addonVersion: '1.0.0-beta',
+  addonVersion: '1.1.0-beta',
   logLevel: process.env.LOG_LEVEL || 'info',
 
   // Safety limits (internal — not env vars)
