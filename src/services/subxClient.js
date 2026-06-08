@@ -1,5 +1,6 @@
 const config = require('../config')
 const logger = require('./logger')
+const metrics = require('./metrics')
 
 const SUBX_BASE = config.subxBaseUrl
 
@@ -17,20 +18,29 @@ function logRateLimit(res, context) {
 }
 
 async function healthCheck() {
-  logger.debug({ url: `${SUBX_BASE}/api/health` }, 'healthCheck: calling')
-  const res = await fetch(`${SUBX_BASE}/api/health`)
-  const ok = res.ok
-  logger.debug({ status: res.status, ok }, 'healthCheck: result')
-  logRateLimit(res, 'healthCheck')
-  return ok ? res.json() : null
+  const endTimer = metrics.subxUpstreamDuration.startTimer({ operation: 'healthCheck' })
+  try {
+    logger.debug({ url: `${SUBX_BASE}/api/health` }, 'healthCheck: calling')
+    const res = await fetch(`${SUBX_BASE}/api/health`)
+    endTimer({ status: String(res.status) })
+    const ok = res.ok
+    logger.debug({ status: res.status, ok }, 'healthCheck: result')
+    logRateLimit(res, 'healthCheck')
+    return ok ? res.json() : null
+  } catch (err) {
+    endTimer({ status: 'error' })
+    throw err
+  }
 }
 
 async function verifyKey(apiKey) {
+  const endTimer = metrics.subxUpstreamDuration.startTimer({ operation: 'verifyKey' })
   try {
     logger.debug('verifyKey: calling search with known IMDB')
     const res = await fetch(`${SUBX_BASE}/api/subtitles/search?imdb_id=tt0773262&limit=1`, {
       headers: { Authorization: `Bearer ${apiKey}` },
     })
+    endTimer({ status: String(res.status) })
     logger.info({ status: res.status, valid: res.ok }, 'verifyKey: result')
     logRateLimit(res, 'verifyKey')
     if (res.status === 429) {
@@ -40,12 +50,14 @@ async function verifyKey(apiKey) {
     }
     return { valid: res.ok, status: res.status }
   } catch (err) {
+    endTimer({ status: 'error' })
     logger.error({ err }, 'verifyKey: error')
     return { valid: false, error: err.message }
   }
 }
 
 async function search(apiKey, params) {
+  const endTimer = metrics.subxUpstreamDuration.startTimer({ operation: 'search' })
   try {
     const query = new URLSearchParams(params).toString()
     const url = `${SUBX_BASE}/api/subtitles/search?${query}`
@@ -53,6 +65,7 @@ async function search(apiKey, params) {
     const res = await fetch(url, {
       headers: { Authorization: `Bearer ${apiKey}` },
     })
+    endTimer({ status: String(res.status) })
     logger.debug({ status: res.status }, 'search: status')
     logRateLimit(res, 'search')
     if (!res.ok) {
@@ -67,17 +80,20 @@ async function search(apiKey, params) {
     logger.info({ count: data?.items?.length || 0 }, 'search: results')
     return data
   } catch (err) {
+    endTimer({ status: 'error' })
     logger.error({ err }, 'search: error')
     return null
   }
 }
 
 async function downloadRaw(apiKey, subtitleId) {
+  const endTimer = metrics.subxUpstreamDuration.startTimer({ operation: 'download' })
   try {
     logger.debug({ subtitleId }, 'downloadRaw: calling')
     const res = await fetch(`${SUBX_BASE}/api/subtitles/${subtitleId}/download`, {
       headers: { Authorization: `Bearer ${apiKey}` },
     })
+    endTimer({ status: String(res.status) })
     logger.debug({ status: res.status, ok: res.ok }, 'downloadRaw: result')
     logRateLimit(res, 'downloadRaw')
     if (!res.ok) {
@@ -90,6 +106,7 @@ async function downloadRaw(apiKey, subtitleId) {
     }
     return res
   } catch (err) {
+    endTimer({ status: 'error' })
     logger.error({ err, subtitleId }, 'downloadRaw: error')
     return null
   }

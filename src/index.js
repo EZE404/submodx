@@ -6,6 +6,7 @@ const pinoHttp = require('pino-http')
 const path = require('path')
 const config = require('./config')
 const logger = require('./services/logger')
+const metrics = require('./services/metrics')
 const { configurePageRoute, verifyKeyRoute } = require('./routes/configure')
 const { manifestRoute } = require('./routes/manifest')
 const { subtitlesRoute } = require('./routes/subtitles')
@@ -72,6 +73,23 @@ app.use((req, res, next) => {
   return generalCors(req, res, next)
 })
 
+// Request duration and count — wraps all routes including health and metrics
+app.use((req, res, next) => {
+  const endTimer = metrics.httpRequestDuration.startTimer({
+    method: req.method,
+    route: req.path,
+  })
+  res.on('finish', () => {
+    endTimer({ status_code: String(res.statusCode) })
+    metrics.httpRequestsTotal.inc({
+      method: req.method,
+      route: req.path,
+      status_code: String(res.statusCode),
+    })
+  })
+  next()
+})
+
 // Health endpoints — registered before rate limiter so probes are never blocked
 app.get('/healthz', (req, res) => {
   res.json({ status: 'ok', uptime: process.uptime() })
@@ -91,6 +109,16 @@ app.get('/readyz', async (req, res) => {
   } catch (err) {
     logger.warn({ err }, 'readyz: SubX unreachable')
     res.status(503).json({ status: 'not ready' })
+  }
+})
+
+app.get('/metrics', async (req, res) => {
+  try {
+    res.set('Content-Type', metrics.client.register.contentType)
+    res.end(await metrics.client.register.metrics())
+  } catch (err) {
+    logger.error({ err }, 'Failed to generate metrics')
+    res.status(500).end()
   }
 })
 
