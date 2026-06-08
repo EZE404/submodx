@@ -37,7 +37,11 @@ if (!process.env.BASE_URL && !process.env.SPACE_HOST) {
 const app = express()
 
 app.set('trust proxy', 1)
-app.use(helmet())
+app.use(helmet({
+  crossOriginResourcePolicy: { policy: 'cross-origin' },
+  contentSecurityPolicy: false,
+  strictTransportSecurity: { maxAge: 31536000 },
+}))
 app.use(express.json())
 
 const subpath = new URL(config.baseUrl).pathname.replace(/\/$/, '')
