@@ -12,7 +12,7 @@ Users bring their own SubX API key, which travels encrypted in the Stremio addon
 1. User opens the addon's `/configure` page and pastes their SubX API key.
 2. The server validates the key against SubX's API. If valid, it encrypts the key using AES-256-GCM and returns a personalized manifest URL.
 3. That URL is installed in Stremio. Each subtitle request decrypts the token at runtime, queries SubX, and returns results.
-4. Subtitle downloads are extracted from `.zip`/`.rar` archives, validated for correct UTF-8 encoding (BOM-stripped), and transparently transcoded from latin1 to UTF-8 when needed. EXPERIMENTAL
+4. Subtitle downloads are extracted from `.zip`/`.rar` archives, then passed through a multi-stage encoding detector that uses BOM detection, null-byte analysis (for UTF-16), and a scoring system (Spanish characters, subtitle structure markers, readability, and mojibake penalties) to reliably convert any encoding to clean UTF-8.
 
 ## Getting a SubX API key
 
@@ -84,7 +84,7 @@ Two-tier cache backed by **Valkey** (hot) + **local filesystem** (persistent).
 - **Framework:** Bare [Express](https://expressjs.com) (no Stremio addon SDK)
 - **Cache:** [ioredis](https://github.com/redis/ioredis) (Valkey/Redis) + local filesystem
 - **Archive extraction:** `adm-zip`, `node-unrar-js`
-- **Encoding conversion:** `iconv-lite` (latin1 → UTF-8 fallback)
+- **Encoding conversion:** `iconv-lite` + `chardet` (scoring-based multi-stage detector: BOM → UTF-16 null-byte heuristic → chardet vote + candidate scoring)
 - **Encryption:** built-in `crypto` module (AES-256-GCM, scrypt-derived key)
 - **Logging:** [Pino](https://getpino.io) + `pino-http`
 - **Metrics:** [prom-client](https://github.com/siimon/prom-client) (Prometheus)
@@ -156,20 +156,48 @@ flowchart TB
 
   ZIP_EX --> SELECT[Select best subtitle<br>full > forced<br>.srt > .sub > .ass/.ssa<br>larger size wins]
   RAR_EX --> SELECT
-  DIRECT --> ENCODE
-  PASSTHROUGH --> ENCODE
+  DIRECT --> UTF8((ensureUtf8))
+  PASSTHROUGH --> UTF8
 
-  SELECT --> ENCODE{ensureUtf8}
+  SELECT --> UTF8
 
-  ENCODE -- "Valid UTF-8 with BOM" --> BOM[Strip UTF-8 BOM]
-  ENCODE -- "Valid UTF-8" --> KEEP[Keep as-is]
-  ENCODE -- "Not UTF-8" --> LATIN1[Decode latin1<br>re-encode as UTF-8]
-
-  BOM --> STORE_BOTH[Store file to disk<br>Store metadata in Valkey]
-  KEEP --> STORE_BOTH
-  LATIN1 --> STORE_BOTH
-
+  UTF8 --> STORE_BOTH[Store file to disk<br>Store metadata in Valkey]
   STORE_BOTH --> SERVE[Serve file]
+```
+
+### Encoding detection (ensureUtf8)
+
+```mermaid
+flowchart TB
+  INPUT([Raw subtitle buffer]) --> BOM{Has BOM?}
+
+  BOM -- "UTF-8 BOM" --> STRIP_BOM[Strip UTF-8 BOM<br>return as UTF-8]
+  BOM -- "UTF-16 LE BOM" --> UTF16_BOM[Decode as UTF-16 LE<br>strip BOM<br>return as UTF-8]
+  BOM -- "UTF-16 BE BOM" --> UTF16_BOM
+  BOM -- No BOM --> UTF16_HEURISTIC{Null-byte heuristic}
+
+  UTF16_HEURISTIC -- "≥10 nulls, ≥20% ratio<br>odd/even 2:1 skew" --> UTF16_GUESS[Decode as UTF-16 LE/BE<br>strip BOM<br>return as UTF-8]
+  UTF16_HEURISTIC -- Not UTF-16 --> CHARDET[Run chardet on buffer<br>for additional vote]
+
+  CHARDET --> TRY_CANDIDATES[Decode buffer with each candidate<br>utf8, windows-1252, iso-8859-1]
+
+  TRY_CANDIDATES --> SCORE[Score each decoded text]
+
+  SCORE --> CRITERIA{Scoring criteria}
+  CRITERIA --> SPANISH["Spanish chars (áéíóúñü¿¡)<br>+2 per occurrence"]
+  CRITERIA --> SUBTITLE["Subtitle structure<br>timestamps +20, dialogue +20<br>ASS headers +20, karaoke +20"]
+  CRITERIA --> READABLE["Readable text<br>+0.5 per clean line"]
+  CRITERIA --> MOJIBAKE["Mojibake patterns (Ã³ Ã± â€™)<br>-25 per occurrence"]
+  CRITERIA --> CHARDET_VOTE["chardet agreement<br>+10 if candidate matches chardet"]
+
+  SPANISH --> RESULT
+  SUBTITLE --> RESULT
+  READABLE --> RESULT
+  MOJIBAKE --> RESULT
+  CHARDET_VOTE --> RESULT
+
+  RESULT[Sum all scores] --> PICK[Pick highest-scoring candidate]
+  PICK --> OUTPUT[Return as clean UTF-8]
 ```
 
 ## Security
