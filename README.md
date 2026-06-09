@@ -1,9 +1,9 @@
-# SubmodX — Spanish Subtitles for Stremio
+# SubmodX — Spanish Subtitles for Stremio and Nuvio
 <p align="center">
   <img src="https://raw.githubusercontent.com/EZE404/submodx/refs/heads/master/public/logo_hires.png" alt="SubmodX" width="400">
 </p>
 
-**SubmodX** is a self-hostable [Stremio](https://www.stremio.com) addon that provides Spanish subtitles (`spa`) from [SubX](https://subx-api.duckdns.org) — an API wrapper around [subdivx.com](https://www.subdivx.com), the largest Spanish subtitle community.
+**SubmodX** is a self-hostable [Stremio](https://www.stremio.com) and [Nuvio](https://nuvio.tv) addon that provides Spanish subtitles (`spa`) from [SubX](https://subx-api.duckdns.org) — an API wrapper around [subdivx.com](https://www.subdivx.com), the largest Spanish subtitle community.
 
 Users bring their own SubX API key, which travels encrypted in the Stremio addon URL. No data is stored server-side.
 
@@ -11,7 +11,7 @@ Users bring their own SubX API key, which travels encrypted in the Stremio addon
 
 1. User opens the addon's `/configure` page and pastes their SubX API key.
 2. The server validates the key against SubX's API. If valid, it encrypts the key using AES-256-GCM and returns a personalized manifest URL.
-3. That URL is installed in Stremio. Each subtitle request decrypts the token at runtime, queries SubX, and returns results.
+3. That URL is installed in Stremio or Nuvio. Each subtitle request decrypts the token at runtime, queries SubX, and returns results.
 4. Subtitle downloads are extracted from `.zip`/`.rar` archives, then passed through a multi-stage encoding detector that uses BOM detection, null-byte analysis (for UTF-16), and a scoring system (Spanish characters, subtitle structure markers, readability, and mojibake penalties) to reliably convert any encoding to clean UTF-8.
 
 ## Getting a SubX API key
@@ -96,7 +96,7 @@ Two-tier cache backed by **Valkey** (hot) + **local filesystem** (persistent).
 
 ```mermaid
 flowchart LR
-  S[Stremio]
+  S[Stremio/Nuvio]
 
   S -- "GET /:config/subtitles/:type/:id.json" --> SR[Subtitle search]
   S -- "GET /:config/srt/:subtitleId" --> DR[Subtitle download]
