@@ -90,24 +90,29 @@ function extractZip(buffer) {
     throw new Error(`Zip archive has ${entries.length} entries, exceeds maximum ${config.maxArchiveEntries}`)
   }
 
-  const subtitleEntries = entries
-    .filter(e =>
-      !e.isDirectory &&
-      /\.(srt|sub|ass|ssa)$/i.test(e.entryName)
-    )
-    .map(e => {
-      checkEntrySize(e.entryName, e.header.uncompressedSize)
-      return {
-        entryName: e.entryName,
-        getData: () => e.getData(),
-        size: e.header.uncompressedSize,
-      }
-    })
+  const rawEntries = entries.filter(e => !e.isDirectory)
+
+  let subtitleEntries = rawEntries
+    .filter(e => /\.(srt|sub|ass|ssa)$/i.test(e.entryName))
 
   if (subtitleEntries.length === 0) {
-    logger.warn('extractZip: no subtitle files found in archive')
-    return null
+    logger.debug('extractZip: no known subtitle formats, falling back to .txt files')
+    subtitleEntries = rawEntries.filter(e => /\.txt$/i.test(e.entryName))
+
+    if (subtitleEntries.length === 0) {
+      logger.warn('extractZip: no subtitle files found in archive')
+      return null
+    }
   }
+
+  subtitleEntries = subtitleEntries.map(e => {
+    checkEntrySize(e.entryName, e.header.uncompressedSize)
+    return {
+      entryName: e.entryName,
+      getData: () => e.getData(),
+      size: e.header.uncompressedSize,
+    }
+  })
 
   const names = subtitleEntries.map(e => `"${sanitizeForLogs(e.entryName)}" (${e.size}B)`).join(', ')
   logger.debug({ count: subtitleEntries.length, files: names }, 'extractZip')
@@ -134,24 +139,29 @@ async function extractRar(buffer) {
     throw new Error(`Rar archive has ${files.length} files, exceeds maximum ${config.maxArchiveEntries}`)
   }
 
-  const subtitleFiles = files
-    .filter(f =>
-      !f.fileHeader.flags.directory &&
-      /\.(srt|sub|ass|ssa)$/i.test(f.fileHeader.name)
-    )
-    .map(f => ({
-      entryName: f.fileHeader.name,
-      getData: () => Buffer.from(f.extraction),
-      size: f.fileHeader.unpSize,
-    }))
+  const rawFiles = files.filter(f => !f.fileHeader.flags.directory)
+
+  let subtitleFiles = rawFiles
+    .filter(f => /\.(srt|sub|ass|ssa)$/i.test(f.fileHeader.name))
+
+  if (subtitleFiles.length === 0) {
+    logger.debug('extractRar: no known subtitle formats, falling back to .txt files')
+    subtitleFiles = rawFiles.filter(f => /\.txt$/i.test(f.fileHeader.name))
+
+    if (subtitleFiles.length === 0) {
+      logger.warn('extractRar: no subtitle files found in archive')
+      return null
+    }
+  }
+
+  subtitleFiles = subtitleFiles.map(f => ({
+    entryName: f.fileHeader.name,
+    getData: () => Buffer.from(f.extraction),
+    size: f.fileHeader.unpSize,
+  }))
 
   for (const f of subtitleFiles) {
     checkEntrySize(f.entryName, f.size)
-  }
-
-  if (subtitleFiles.length === 0) {
-    logger.warn('extractRar: no subtitle files found in archive')
-    return null
   }
 
   const names = subtitleFiles.map(e => `"${sanitizeForLogs(e.entryName)}" (${e.size}B)`).join(', ')

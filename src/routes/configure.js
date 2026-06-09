@@ -89,7 +89,7 @@ function configurePageRoute(req, res) {
   res.send(
     template
       .replace('{{SEARCH_CACHE_TTL}}', formatDuration(config.searchCacheTTL))
-      .replace('{{DOWNLOAD_CACHE_TTL}}', formatDuration(config.downloadCacheTTL))
+      .replace('{{DOWNLOAD_CACHE_TTL}}', formatDuration(config.subtitleCacheTTL))
       .replace('{{MAX_SEARCH_RESULTS}}', config.maxSearchResults)
       .replace('{{ADDON_VERSION}}', config.addonVersion)
   )
