@@ -6,7 +6,7 @@ const { sanitizeFilename } = require('../utils/sanitize')
 
 async function subtitleFileRoute(req, res) {
   res.setHeader('Access-Control-Allow-Origin', '*')
-  res.setHeader('Cache-Control', `max-age=${config.downloadCacheTTL}`)
+  res.setHeader('Cache-Control', `max-age=${config.subtitleCacheTTL}`)
 
   logger.info({ subtitleId: req.params.subtitleId }, 'subtitleFileRoute: request received')
   const apiKey = decryptApiKey(req.params.config)

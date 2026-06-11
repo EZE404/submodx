@@ -1,7 +1,7 @@
 function sanitizeFilename(name) {
   return String(name)
     .replace(/["\r\n]/g, '')
-    .replace(/[\x00-\x1F\x7F]/g, '')
+    .replace(/[^\x20-\x7E]/g, '')
     .trim()
 }
 
