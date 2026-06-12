@@ -15,6 +15,15 @@ const config = {
   addonVersion: '1.1.0-beta',
   logLevel: process.env.LOG_LEVEL || 'info',
 
+  // TMDB Prefetch (optional)
+  tmdbApiKey: process.env.TMDB_API_KEY || '',
+  subxPrefetchApiKey: process.env.SUBX_PREFETCH_API_KEY || '',
+  prefetchEnabled: process.env.PREFETCH_ENABLED === 'true',
+  prefetchIntervalMinutes: Math.max(60, parseInt(process.env.PREFETCH_INTERVAL_MINUTES, 10) || 10080),
+  prefetchTrendingCount: Math.max(1, Math.min(50, parseInt(process.env.PREFETCH_TRENDING_COUNT, 10) || 10)),
+  prefetchTvEpisodesPerSeason: Math.max(1, Math.min(20, parseInt(process.env.PREFETCH_TV_EPISODES_PER_SEASON, 10) || 3)),
+  prefetchDownloadsPerTitle: Math.max(1, Math.min(20, parseInt(process.env.PREFETCH_DOWNLOADS_PER_TITLE, 10) || 5)),
+
   // Safety limits (internal — not env vars)
   maxResponseBytes: 20 * 1024 * 1024,
   maxArchiveEntries: 1000,

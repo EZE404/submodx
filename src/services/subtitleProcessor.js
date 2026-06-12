@@ -252,6 +252,7 @@ async function processDownload(apiKey, subtitleId) {
 
   if (result) {
     result.buffer = ensureUtf8(result.buffer)
+    result.filename = sanitizeFilename(result.filename)
     const resultExt = path.extname(result.filename).toLowerCase().replace('.', '') || 'srt'
     await storage.set(subtitleId, { buffer: result.buffer, filename: result.filename, ext: resultExt })
     await hotCache.set(subtitleId, { id: subtitleId, ext: resultExt, storedAt: Date.now() }, config.subtitleCacheTTL)

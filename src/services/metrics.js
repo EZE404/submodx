@@ -33,6 +33,24 @@ const subxUpstreamDuration = new client.Histogram({
   labelNames: ['operation', 'status'],
 })
 
+// Prefetch item counters
+const prefetchItemsTotal = new client.Counter({
+  name: 'prefetch_items_total',
+  help: 'Total prefetched items by status',
+  labelNames: ['status'],
+})
+
+const prefetchCycleDuration = new client.Gauge({
+  name: 'prefetch_cycle_duration_seconds',
+  help: 'Duration of the last prefetch cycle',
+})
+
+const prefetchCycleItems = new client.Gauge({
+  name: 'prefetch_cycle_items',
+  help: 'Items processed in last prefetch cycle by status',
+  labelNames: ['status'],
+})
+
 module.exports = {
   client,
   httpRequestDuration,
@@ -40,4 +58,7 @@ module.exports = {
   cacheHits,
   cacheMisses,
   subxUpstreamDuration,
+  prefetchItemsTotal,
+  prefetchCycleDuration,
+  prefetchCycleItems,
 }

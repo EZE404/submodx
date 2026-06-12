@@ -172,6 +172,39 @@ async function start() {
 
   const server = app.listen(config.port, () => {
     logger.info({ port: config.port, baseUrl: config.baseUrl, subxBaseUrl: config.subxBaseUrl }, 'Server started')
+
+    if (config.prefetchEnabled) {
+      const missing = []
+      if (!config.tmdbApiKey) missing.push('TMDB_API_KEY')
+      if (!config.subxPrefetchApiKey) missing.push('SUBX_PREFETCH_API_KEY')
+
+      if (missing.length === 0) {
+        const { PrefetchManager } = require('./services/prefetchManager')
+        const prefetcher = new PrefetchManager(config)
+        const startupDelay = setTimeout(() => {
+          prefetcher.start()
+        }, 30_000)
+
+        const origSigTerm = process.listeners('SIGTERM').pop()
+        process.on('SIGTERM', () => {
+          clearTimeout(startupDelay)
+          prefetcher.stop()
+          if (origSigTerm) origSigTerm()
+        })
+
+        logger.info({
+          intervalMinutes: config.prefetchIntervalMinutes,
+          trendingCount: config.prefetchTrendingCount,
+        }, 'Prefetch scheduler configured (will start in 30s)')
+      } else {
+        logger.warn({
+          missing,
+          hint: 'Set the missing env vars or set PREFETCH_ENABLED=false to silence this warning',
+        }, 'Prefetch enabled but required API keys are missing — prefetch will not run')
+      }
+    } else {
+      logger.info('Prefetch scheduler disabled by config (PREFETCH_ENABLED=false)')
+    }
   })
 
   process.on('SIGTERM', async () => {
